@@ -1,13 +1,79 @@
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PredictionCard } from "@/components/ui/prediction-card";
 import { LeagueTable } from "@/components/ui/league-table";
 import { StatsCard } from "@/components/ui/stats-card";
-import { mockPredictions, mockLeagueStandings } from "@/data/mock-data";
 import { Target, TrendingUp, Calculator, BarChart3 } from "lucide-react";
+import { Prediction, LeagueStanding } from "@/types/prediction";
+import { UpcomingMatch } from "@/types/api";
+import { mockLeagueStandings } from "@/data/mock-data";
+import { PredictionService } from "@/services/prediction";
+
+const predictionService = new PredictionService();
 
 const Index = () => {
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadPredictions = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const upcomingPredictions = await predictionService.getUpcomingPredictions();
+      
+      // Transform the predictions into our frontend format
+      const formattedPredictions: Prediction[] = upcomingPredictions.map((p: UpcomingMatch) => ({
+        id: p.match_id,
+        homeTeam: p.home_team,
+        awayTeam: p.away_team,
+        homeWinProb: Math.round(p.prediction.home_win_probability * 100),
+        drawProb: Math.round(p.prediction.draw_probability * 100),
+        awayWinProb: Math.round(p.prediction.away_win_probability * 100),
+        predictedScore: `${p.prediction.predicted_home_goals} - ${p.prediction.predicted_away_goals}`,
+        confidence: getConfidence(p.prediction),
+        matchDate: new Date(p.date).toLocaleDateString(),
+      }));
+
+      setPredictions(formattedPredictions);
+      setError(null);
+    } catch (err) {
+      setError("Failed to load predictions. Please try again later.");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPredictions();
+  }, [loadPredictions]);
+
+  const getConfidence = (prediction: UpcomingMatch["prediction"]) => {
+    const maxProb = Math.max(
+      prediction.home_win_probability,
+      prediction.away_win_probability,
+      prediction.draw_probability
+    );
+    
+    if (maxProb > 0.6) return "high";
+    if (maxProb > 0.4) return "medium";
+    return "low";
+  };
+
+  const handleRefreshPredictions = async () => {
+    try {
+      setIsLoading(true);
+      await predictionService.trainModel();
+      await loadPredictions();
+    } catch (err) {
+      setError("Failed to refresh predictions. Please try again later.");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -79,7 +145,7 @@ const Index = () => {
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
-          {mockPredictions.map((prediction) => (
+          {predictions.map((prediction) => (
             <PredictionCard key={prediction.id} {...prediction} />
           ))}
         </div>
