@@ -17,7 +17,6 @@ The project is designed to demonstrate the application of data science and machi
 - Data preprocessing and feature engineering pipeline
 - Machine learning model training and evaluation
 - Performance metrics and prediction confidence
-- Easily extendable with new seasons and datasets
 
 ---
 
